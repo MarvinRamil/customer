@@ -1,0 +1,1139 @@
+# stages:
+#   - build
+#   - deploy
+
+# build_customerapp:
+#   stage: build
+#   tags:
+#     - customerapp
+#   only:
+#     - main
+#     - master
+#     - dev
+#     - features
+#   before_script:
+#     - export ANDROID_HOME=/opt/android-sdk
+#     - export PATH=$PATH:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:/opt/android-sdk/build-tools/33.0.2:/opt/gradle-8.0.2/bin
+#     - echo "=== Checking versions ==="
+#     - node --version
+#     - java -version
+#     - |
+#       # Check Node.js version - toReversed() requires Node 20+
+#       NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
+#       echo "Current Node.js version: $(node --version)"
+#       if [ "$NODE_VERSION" -lt 20 ]; then
+#         echo "WARNING: Node.js version is less than 20 (current: $(node --version))"
+#         echo "toReversed() method requires Node.js 20+"
+#         echo "Attempting to use nvm to switch to Node 20..."
+#         # Try to use nvm if available
+#         if [ -s "$HOME/.nvm/nvm.sh" ]; then
+#           . "$HOME/.nvm/nvm.sh"
+#           nvm install 20
+#           nvm use 20
+#           echo "Switched to Node.js: $(node --version)"
+#         elif [ -s "/usr/local/nvm/nvm.sh" ]; then
+#           . "/usr/local/nvm/nvm.sh"
+#           nvm install 20
+#           nvm use 20
+#           echo "Switched to Node.js: $(node --version)"
+#         else
+#           echo "ERROR: Node.js 20+ required but nvm not found. Please upgrade Node.js on runner."
+#           exit 1
+#         fi
+#       fi
+#     - |
+#       # Decode keystore from base64
+#       echo "=== Setting up Android signing ==="
+#       if [ -z "$CUSTOMER_ANDROID_KEYSTORE_BASE64" ]; then
+#         echo "WARNING: CUSTOMER_ANDROID_KEYSTORE_BASE64 not set. Build will continue but may not be signed."
+#       else
+#         echo "$CUSTOMER_ANDROID_KEYSTORE_BASE64" | base64 -d > /tmp/release.keystore
+#         echo "Keystore decoded successfully"
+#         ls -lh /tmp/release.keystore
+#       fi
+#   script:
+#     - |
+#       # Set environment variables based on branch
+#       echo "=== Setting environment variables based on branch ==="
+#       BRANCH_NAME=${CI_COMMIT_REF_SLUG:-unknown}
+#       echo "Branch: $BRANCH_NAME"
+      
+#       # Determine environment based on branch
+#       # Note: app.config.js handles the actual variable resolution with fallbacks
+#       # These exports make variables available to the build process (Gradle, etc.)
+#       # app.config.js will read environment-specific variables (e.g., EXPO_PUBLIC_API_URL_PRODUCTION)
+#       # and fall back to base variables (e.g., EXPO_PUBLIC_API_URL) automatically
+#       if [ "$BRANCH_NAME" = "main" ] || [ "$BRANCH_NAME" = "master" ]; then
+#         export CI_ENVIRONMENT_NAME="production"
+#         # Export base variables for build process (app.config.js handles resolution)
+#         export EXPO_PUBLIC_API_URL="${EXPO_PUBLIC_API_URL_PRODUCTION:-${EXPO_PUBLIC_API_URL}}"
+#         export EXPO_PUBLIC_GOOGLE_MAPS_API_KEY="${EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_PRODUCTION:-${EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}}"
+#         export EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN="${EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN_PRODUCTION:-${EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN}}"
+#         export EXPO_PUBLIC_MQTT_HOST="${EXPO_PUBLIC_MQTT_HOST_PRODUCTION:-${EXPO_PUBLIC_MQTT_HOST}}"
+#         export EXPO_PUBLIC_MQTT_PORT="${EXPO_PUBLIC_MQTT_PORT_PRODUCTION:-${EXPO_PUBLIC_MQTT_PORT}}"
+#         export EXPO_PUBLIC_MQTT_USERNAME="${EXPO_PUBLIC_MQTT_USERNAME_PRODUCTION:-${EXPO_PUBLIC_MQTT_USERNAME}}"
+#         export EXPO_PUBLIC_MQTT_PASSWORD="${EXPO_PUBLIC_MQTT_PASSWORD_PRODUCTION:-${EXPO_PUBLIC_MQTT_PASSWORD}}"
+#         echo "Environment: production"
+#       elif [ "$BRANCH_NAME" = "dev" ]; then
+#         export CI_ENVIRONMENT_NAME="staging"
+#         # Export base variables for build process (app.config.js handles resolution)
+#         export EXPO_PUBLIC_API_URL="${EXPO_PUBLIC_API_URL_STAGING:-${EXPO_PUBLIC_API_URL}}"
+#         export EXPO_PUBLIC_GOOGLE_MAPS_API_KEY="${EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_STAGING:-${EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}}"
+#         export EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN="${EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN_STAGING:-${EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN}}"
+#         export EXPO_PUBLIC_MQTT_HOST="${EXPO_PUBLIC_MQTT_HOST_STAGING:-${EXPO_PUBLIC_MQTT_HOST}}"
+#         export EXPO_PUBLIC_MQTT_PORT="${EXPO_PUBLIC_MQTT_PORT_STAGING:-${EXPO_PUBLIC_MQTT_PORT}}"
+#         export EXPO_PUBLIC_MQTT_USERNAME="${EXPO_PUBLIC_MQTT_USERNAME_STAGING:-${EXPO_PUBLIC_MQTT_USERNAME}}"
+#         export EXPO_PUBLIC_MQTT_PASSWORD="${EXPO_PUBLIC_MQTT_PASSWORD_STAGING:-${EXPO_PUBLIC_MQTT_PASSWORD}}"
+#         echo "Environment: staging"
+#       elif [ "$BRANCH_NAME" = "features" ]; then
+#         export CI_ENVIRONMENT_NAME="development"
+#         # Export base variables for build process (app.config.js handles resolution)
+#         export EXPO_PUBLIC_API_URL="${EXPO_PUBLIC_API_URL_DEVELOPMENT:-${EXPO_PUBLIC_API_URL}}"
+#         export EXPO_PUBLIC_GOOGLE_MAPS_API_KEY="${EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_DEVELOPMENT:-${EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}}"
+#         export EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN="${EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN_DEVELOPMENT:-${EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN}}"
+#         export EXPO_PUBLIC_MQTT_HOST="${EXPO_PUBLIC_MQTT_HOST_DEVELOPMENT:-${EXPO_PUBLIC_MQTT_HOST}}"
+#         export EXPO_PUBLIC_MQTT_PORT="${EXPO_PUBLIC_MQTT_PORT_DEVELOPMENT:-${EXPO_PUBLIC_MQTT_PORT}}"
+#         export EXPO_PUBLIC_MQTT_USERNAME="${EXPO_PUBLIC_MQTT_USERNAME_DEVELOPMENT:-${EXPO_PUBLIC_MQTT_USERNAME}}"
+#         export EXPO_PUBLIC_MQTT_PASSWORD="${EXPO_PUBLIC_MQTT_PASSWORD_DEVELOPMENT:-${EXPO_PUBLIC_MQTT_PASSWORD}}"
+#         echo "Environment: development"
+#       else
+#         export CI_ENVIRONMENT_NAME="development"
+#         # Export base variables for build process (app.config.js handles resolution)
+#         export EXPO_PUBLIC_API_URL="${EXPO_PUBLIC_API_URL_DEVELOPMENT:-${EXPO_PUBLIC_API_URL}}"
+#         export EXPO_PUBLIC_GOOGLE_MAPS_API_KEY="${EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_DEVELOPMENT:-${EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}}"
+#         export EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN="${EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN_DEVELOPMENT:-${EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN}}"
+#         export EXPO_PUBLIC_MQTT_HOST="${EXPO_PUBLIC_MQTT_HOST_DEVELOPMENT:-${EXPO_PUBLIC_MQTT_HOST}}"
+#         export EXPO_PUBLIC_MQTT_PORT="${EXPO_PUBLIC_MQTT_PORT_DEVELOPMENT:-${EXPO_PUBLIC_MQTT_PORT}}"
+#         export EXPO_PUBLIC_MQTT_USERNAME="${EXPO_PUBLIC_MQTT_USERNAME_DEVELOPMENT:-${EXPO_PUBLIC_MQTT_USERNAME}}"
+#         export EXPO_PUBLIC_MQTT_PASSWORD="${EXPO_PUBLIC_MQTT_PASSWORD_DEVELOPMENT:-${EXPO_PUBLIC_MQTT_PASSWORD}}"
+#         echo "Environment: development (fallback)"
+#       fi
+      
+#       echo "API URL: $EXPO_PUBLIC_API_URL"
+#       echo "Google Maps API Key: ${EXPO_PUBLIC_GOOGLE_MAPS_API_KEY:0:20}..." # Show first 20 chars only
+#       echo "Mapbox Access Token: ${EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN:0:20}..." # Show first 20 chars only
+#       echo "MQTT Host: ${EXPO_PUBLIC_MQTT_HOST:-not set}"
+#       echo "MQTT Port: ${EXPO_PUBLIC_MQTT_PORT:-not set}"
+#       echo "MQTT Username: ${EXPO_PUBLIC_MQTT_USERNAME:-not set}"
+      
+#       # Export for app.config.js
+#       export CI_COMMIT_REF_NAME="$BRANCH_NAME"
+#     - |
+#       # Auto-increment version based on commit message keywords
+#       # major release / major  -> 1.1.0 -> 2.0.0
+#       # version upgrade / minor -> 1.0.1 -> 1.1.0
+#       # patch / default         -> 1.0.0 -> 1.0.1
+#       echo "=== Auto-incrementing app version ==="
+#       BUILD_NUM=${CI_PIPELINE_IID:-1}
+#       COMMIT_MSG="${CI_COMMIT_MESSAGE:-}"
+#       COMMIT_MSG_LOWER=$(echo "$COMMIT_MSG" | tr '[:upper:]' '[:lower:]')
+      
+#       # Get current version: VERSION file (source of truth) > app.config.js > default
+#       if [[ -f VERSION ]] && [[ "$(cat VERSION)" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+#         CURRENT_VERSION=$(cat VERSION | tr -d '[:space:]')
+#         echo "Read version from VERSION file"
+#       else
+#         CURRENT_VERSION=$(node -e "const config = require('./app.config.js'); console.log(config.expo.version);" 2>&1 | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | tail -1)
+#         [[ ! "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && CURRENT_VERSION=$(grep -E 'version:\s*"[0-9]+\.[0-9]+\.[0-9]+"' app.config.js 2>/dev/null | sed -E 's/.*version:\s*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/' | head -1)
+#         [[ ! "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && CURRENT_VERSION="1.0.0"
+#         echo "Read version from app.config.js (VERSION file missing or invalid)"
+#       fi
+      
+#       echo "Current version: $CURRENT_VERSION"
+#       echo "Commit message: ${COMMIT_MSG:0:80}..."
+      
+#       IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+#       MAJOR=$((10#$MAJOR))
+#       MINOR=$((10#$MINOR))
+#       PATCH=$((10#$PATCH))
+      
+#       if echo "$COMMIT_MSG_LOWER" | grep -qE 'major[^a-z]|major$|major release'; then
+#         NEW_VERSION="$((MAJOR + 1)).0.0"
+#         echo "Bump: MAJOR (keyword in commit)"
+#       elif echo "$COMMIT_MSG_LOWER" | grep -qE 'version upgrade|minor[^a-z]|minor$'; then
+#         NEW_VERSION="${MAJOR}.$((MINOR + 1)).0"
+#         echo "Bump: MINOR (keyword in commit)"
+#       else
+#         NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+#         echo "Bump: PATCH (default)"
+#       fi
+      
+#       echo "New version: $NEW_VERSION"
+      
+#       # Update VERSION (source of truth), app.config.js, package.json
+#       echo "$NEW_VERSION" > VERSION
+#       echo "Updated VERSION: $NEW_VERSION"
+#       echo "Updating app.config.js..."
+#       sed -i "s/version: \"$CURRENT_VERSION\"/version: \"$NEW_VERSION\"/" app.config.js
+#       echo "Updating package.json..."
+#       sed -i "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/" package.json
+      
+#       # Verify updates
+#       echo "=== Verifying version updates ==="
+#       echo "VERSION file: $(cat VERSION)"
+#       echo "app.config.js version:"
+#       node -e "const config = require('./app.config.js'); console.log('  version:', config.expo.version);"
+#       echo "package.json version:"
+#       node -e "const pkg = require('./package.json'); console.log('  version:', pkg.version);"
+      
+#       # Set environment variable for use in file naming
+#       export APP_VERSION="$NEW_VERSION"
+#       if [ -n "${CI_REGISTRY_FILE:-}" ]; then echo "APP_VERSION=$NEW_VERSION" >> "$CI_REGISTRY_FILE"; else echo "APP_VERSION=$NEW_VERSION" > /tmp/app_version.env; fi
+#     - npm ci
+#     - npx expo prebuild --platform android
+#     - |
+#       # Configure Android signing in build.gradle
+#       cd android
+#       # Configure Gradle to avoid Metaspace OOM (expo-updates KSP needs enough metaspace)
+#       # Strategy: 1 worker = one KSP process, give it enough Metaspace
+#       echo "=== Configuring Gradle to avoid Metaspace OOM ==="
+#       [ -f gradle.properties ] && sed -i '/^org.gradle.jvmargs=/d' gradle.properties 2>/dev/null || true
+#       [ -f gradle.properties ] && sed -i '/^org.gradle.workers.max=/d' gradle.properties 2>/dev/null || true
+#       [ -f gradle.properties ] && sed -i '/^org.gradle.parallel=/d' gradle.properties 2>/dev/null || true
+#       [ -f gradle.properties ] && sed -i '/^org.gradle.configureondemand=/d' gradle.properties 2>/dev/null || true
+#       echo "org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=768m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8" >> gradle.properties
+#       echo "org.gradle.workers.max=1" >> gradle.properties
+#       echo "org.gradle.parallel=false" >> gradle.properties
+#       echo "org.gradle.configureondemand=true" >> gradle.properties
+#       echo "✓ Gradle configured (single worker, 768m Metaspace for KSP)"
+#       # Export signing credentials for Gradle BEFORE modifying build.gradle
+#       export CUSTOMER_ANDROID_KEYSTORE_PASSWORD="$CUSTOMER_ANDROID_KEYSTORE_PASSWORD"
+#       export CUSTOMER_ANDROID_KEY_ALIAS="$CUSTOMER_ANDROID_KEY_ALIAS"
+#       export CUSTOMER_ANDROID_KEY_PASSWORD="$CUSTOMER_ANDROID_KEY_PASSWORD"
+      
+#       if [ -f "/tmp/release.keystore" ] && [ -n "$CUSTOMER_ANDROID_KEYSTORE_PASSWORD" ] && [ -n "$CUSTOMER_ANDROID_KEY_ALIAS" ] && [ -n "$CUSTOMER_ANDROID_KEY_PASSWORD" ]; then
+#         echo "=== Configuring Android signing ==="
+#         # Copy keystore to android/app directory
+#         cp /tmp/release.keystore app/release.keystore
+        
+#         # Check if signingConfigs block with release config already exists
+#         if grep -q "signingConfigs {" app/build.gradle && grep -A 10 "signingConfigs {" app/build.gradle | grep -q "release {"; then
+#           echo "signingConfigs.release already exists in build.gradle"
+#         else
+#           echo "Adding signingConfigs block..."
+#         # Create signing config snippet file
+#         printf '    signingConfigs {\n        release {\n            storeFile file("release.keystore")\n            storePassword System.getenv("CUSTOMER_ANDROID_KEYSTORE_PASSWORD")\n            keyAlias System.getenv("CUSTOMER_ANDROID_KEY_ALIAS")\n            keyPassword System.getenv("CUSTOMER_ANDROID_KEY_PASSWORD")\n        }\n    }\n' > /tmp/signing_config.txt
+          
+#           # Check if signingConfigs block exists (even without release)
+#           if grep -q "signingConfigs {" app/build.gradle; then
+#             echo "signingConfigs block exists, adding release config..."
+#             # Create release config snippet
+#             printf '        release {\n            storeFile file("release.keystore")\n            storePassword System.getenv("CUSTOMER_ANDROID_KEYSTORE_PASSWORD")\n            keyAlias System.getenv("CUSTOMER_ANDROID_KEY_ALIAS")\n            keyPassword System.getenv("CUSTOMER_ANDROID_KEY_PASSWORD")\n        }\n' > /tmp/release_config.txt
+#             # Add release config inside existing signingConfigs block
+#             sed -i '/signingConfigs {/r /tmp/release_config.txt' app/build.gradle
+#           else
+#             echo "Adding signingConfigs block after android {"
+#             # Insert after first occurrence of android {
+#             sed -i '0,/android {/r /tmp/signing_config.txt' app/build.gradle
+#           fi
+#         fi
+        
+#         # Verify signingConfigs.release exists before adding to buildType
+#         if grep -q "signingConfigs {" app/build.gradle && grep -A 10 "signingConfigs {" app/build.gradle | grep -q "release {"; then
+#           echo "signingConfigs.release verified, checking buildType..."
+#         # Add signingConfig to release buildType if not present
+#           if grep -q "buildTypes {" app/build.gradle; then
+#             # Check if release exists in buildTypes section (not in signingConfigs)
+#             # Extract buildTypes section to a temp file for checking
+#             sed -n '/buildTypes {/,/^    }/p' app/build.gradle > /tmp/buildtypes_section.txt 2>/dev/null || sed -n '/buildTypes {/,/^}/p' app/build.gradle > /tmp/buildtypes_section.txt
+            
+#             if grep -q "release {" /tmp/buildtypes_section.txt; then
+#               # Check if release block has correct signing config
+#               if grep -A 10 "release {" /tmp/buildtypes_section.txt | grep -q "signingConfig.*signingConfigs.debug"; then
+#                 echo "Found signingConfig signingConfigs.debug - REPLACING with signingConfigs.release..."
+#                 echo "Before modification - buildTypes section:"
+#                 sed -n '/buildTypes {/,/^    }/p' app/build.gradle | head -20
+                
+#                 # Replace signingConfigs.debug with signingConfigs.release in the release block
+#                 sed -i '/buildTypes {/,/^    }/ {
+#                   /release {/,/}/ {
+#                     s/signingConfig signingConfigs\.debug/signingConfig signingConfigs.release/g
+#                   }
+#                 }' app/build.gradle
+                
+#                 echo "After replacement - buildTypes section:"
+#                 sed -n '/buildTypes {/,/^    }/p' app/build.gradle | head -20
+                
+#               elif ! grep -A 10 "release {" /tmp/buildtypes_section.txt | grep -q "signingConfig.*signingConfigs.release"; then
+#                 echo "No signingConfig found - adding signingConfig to release buildType..."
+#                 echo "Before modification - buildTypes section:"
+#                 sed -n '/buildTypes {/,/^    }/p' app/build.gradle | head -20
+                
+#                 # Use awk to find release { within buildTypes block and insert after it
+#                 awk '
+#                   /buildTypes \{/ {in_buildtypes=1; print; next}
+#                   in_buildtypes && /^\s*release \{/ && !inserted {
+#                     print
+#                     print "            signingConfig signingConfigs.release"
+#                     inserted=1
+#                     next
+#                   }
+#                   in_buildtypes && /^\s*\}/ && NF==1 {in_buildtypes=0}
+#                   {print}
+#                 ' app/build.gradle > /tmp/build.gradle.tmp && mv /tmp/build.gradle.tmp app/build.gradle
+                
+#                 echo "After addition - buildTypes section:"
+#                 sed -n '/buildTypes {/,/^    }/p' app/build.gradle | head -20
+#               else
+#                 echo "✓ signingConfig signingConfigs.release already present in release buildType"
+#               fi
+              
+#               # Final verification that signingConfig is correctly set
+#               awk '/buildTypes \{/,/^    \}/ {print}' app/build.gradle > /tmp/buildtypes_verify.txt 2>/dev/null || \
+#               awk '/buildTypes \{/,/^}/ {print}' app/build.gradle > /tmp/buildtypes_verify.txt
+#               if grep -A 10 "release {" /tmp/buildtypes_verify.txt | grep -q "signingConfig.*signingConfigs.release"; then
+#                 echo "✓ signingConfig correctly set to signingConfigs.release in buildTypes"
+#               else
+#                 echo "ERROR: signingConfig is NOT correctly set in buildTypes release"
+#                 echo "Current buildTypes release block:"
+#                 grep -A 15 "release {" /tmp/buildtypes_verify.txt
+#                 exit 1
+#               fi
+#             else
+#               echo "WARNING: release buildType not found in buildTypes block"
+#             fi
+#           else
+#             echo "WARNING: buildTypes block not found"
+#           fi
+#         else
+#           echo "ERROR: Failed to create signingConfigs.release, cannot add to buildType"
+#           exit 1
+#         fi
+        
+#         echo "Signing configuration added to build.gradle"
+#       else
+#         echo "WARNING: Keystore or signing credentials not available. Build will continue without signing."
+#       fi
+      
+#       # Pre-build signing check
+#       if [ -f "/tmp/release.keystore" ] && [ -n "$CUSTOMER_ANDROID_KEYSTORE_PASSWORD" ] && [ -n "$CUSTOMER_ANDROID_KEY_ALIAS" ] && [ -n "$CUSTOMER_ANDROID_KEY_PASSWORD" ]; then
+        
+#         # Extract buildTypes section to check
+#         awk '/buildTypes \{/,/^    \}/ {print}' app/build.gradle > /tmp/buildtypes_check.txt 2>/dev/null || \
+#         awk '/buildTypes \{/,/^}/ {print}' app/build.gradle > /tmp/buildtypes_check.txt
+        
+#         echo "buildTypes section:"
+#         cat /tmp/buildtypes_check.txt
+#         echo ""
+        
+#         # Check if signingConfig is correctly set in buildTypes release
+#         if grep -A 10 "release {" /tmp/buildtypes_check.txt | grep -q "signingConfig.*signingConfigs.release"; then
+#           echo "✓ signingConfig correctly set to signingConfigs.release in buildTypes release block"
+#         elif grep -A 10 "release {" /tmp/buildtypes_check.txt | grep -q "signingConfig.*signingConfigs.debug"; then
+#           echo "WARNING: signingConfig is set to signingConfigs.debug - this will cause debug signing!"
+#           echo ""
+#           echo "Current buildTypes release block:"
+#           grep -A 10 "release {" /tmp/buildtypes_check.txt
+#           echo ""
+#           echo "FIXING: Replacing signingConfigs.debug with signingConfigs.release..."
+          
+#           # Replace debug signing with release signing
+#           sed -i '/buildTypes {/,/^    }/ {
+#             /release {/,/}/ {
+#               s/signingConfig signingConfigs\.debug/signingConfig signingConfigs.release/g
+#             }
+#           }' app/build.gradle
+          
+#           # Verify the fix
+#           awk '/buildTypes \{/,/^    \}/ {print}' app/build.gradle > /tmp/buildtypes_check_fixed.txt 2>/dev/null || \
+#           awk '/buildTypes \{/,/^}/ {print}' app/build.gradle > /tmp/buildtypes_check_fixed.txt
+#           if grep -A 10 "release {" /tmp/buildtypes_check_fixed.txt | grep -q "signingConfig.*signingConfigs.release"; then
+#             echo "✓ Successfully replaced debug signing with release signing"
+#           else
+#             echo "ERROR: Failed to replace debug signing. Current buildTypes release:"
+#             grep -A 10 "release {" /tmp/buildtypes_check_fixed.txt
+#             exit 1
+#           fi
+#         else
+#           echo "ERROR: signingConfig NOT found in buildTypes release block!"
+#           echo ""
+#           echo "Current buildTypes release block:"
+#           grep -A 10 "release {" /tmp/buildtypes_check.txt || echo "Could not find release block"
+#           echo ""
+#           echo "Adding signingConfig to buildTypes release..."
+          
+#           # Find buildTypes line number
+#           buildtypes_line=$(grep -n "buildTypes {" app/build.gradle | head -1 | cut -d: -f1)
+#           if [ -n "$buildtypes_line" ]; then
+#             # Find release { after buildTypes
+#             release_line=$(sed -n "${buildtypes_line},\$p" app/build.gradle | grep -n "release {" | head -1 | cut -d: -f1)
+#             if [ -n "$release_line" ]; then
+#               release_abs_line=$((buildtypes_line + release_line - 1))
+#               echo "Found release block at line $release_abs_line, adding signingConfig..."
+#               sed -i "${release_abs_line}a\            signingConfig signingConfigs.release" app/build.gradle
+              
+#               # Verify it was added
+#               awk '/buildTypes \{/,/^    \}/ {print}' app/build.gradle > /tmp/buildtypes_check2.txt 2>/dev/null || \
+#               awk '/buildTypes \{/,/^}/ {print}' app/build.gradle > /tmp/buildtypes_check2.txt
+#               if grep -A 10 "release {" /tmp/buildtypes_check2.txt | grep -q "signingConfig.*signingConfigs.release"; then
+#                 echo "✓ signingConfig added successfully"
+#               else
+#                 echo "ERROR: Failed to add signingConfig. Current buildTypes release:"
+#                 grep -A 10 "release {" /tmp/buildtypes_check2.txt
+#                 exit 1
+#               fi
+#             else
+#               echo "ERROR: Could not find release block in buildTypes"
+#               exit 1
+#             fi
+#           else
+#             echo "ERROR: Could not find buildTypes block"
+#             exit 1
+#           fi
+#         fi
+        
+#         # Also verify signingConfigs.release exists
+#         if ! grep -A 10 "signingConfigs {" app/build.gradle | grep -q "release {"; then
+#           echo "ERROR: signingConfigs.release is missing!"
+#           exit 1
+#         fi
+        
+#         echo "✓ All signing configuration checks passed"
+        
+#         echo ""
+#         echo "=== FINAL VERIFICATION: Complete signing configuration ==="
+#         echo "signingConfigs section in build.gradle:"
+#         grep -A 10 "signingConfigs {" app/build.gradle | head -15
+#         echo ""
+#         echo "buildTypes section in build.gradle:"
+#         sed -n '/buildTypes {/,/^    }/p' app/build.gradle | head -20
+#         echo ""
+#         echo "Environment variables available to Gradle:"
+#         echo "CUSTOMER_ANDROID_KEYSTORE_PASSWORD: ${CUSTOMER_ANDROID_KEYSTORE_PASSWORD:0:10}..." 
+#         echo "CUSTOMER_ANDROID_KEY_ALIAS: $CUSTOMER_ANDROID_KEY_ALIAS"
+#         echo "CUSTOMER_ANDROID_KEY_PASSWORD: ${CUSTOMER_ANDROID_KEY_PASSWORD:0:10}..."
+#       fi
+      
+#       # Build APK and AAB
+#       chmod +x gradlew
+#       # Stop any existing Gradle daemons and clean up locks
+#       ./gradlew --stop || true
+#       # Build with no daemon to avoid file locking issues
+#       echo "=== Starting Gradle build ==="
+#       # Build with minimal output (remove --info to reduce log size)
+#       ./gradlew assembleRelease bundleRelease --no-daemon -q
+#     - |
+#       BRANCH_NAME=${CI_COMMIT_REF_SLUG:-unknown}
+#       BUILD_NUM=${CI_PIPELINE_IID:-1}
+      
+#       # Get the app version that was updated earlier
+#       # Filter output to get only the version number (last line matching version pattern)
+#       APP_VERSION=$(node -e "const config = require('../app.config.js'); console.log(config.expo.version);" 2>&1 | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | tail -1)
+      
+#       # Validate version format
+#       if [[ ! "$APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+#         echo "WARNING: Could not extract version from app.config.js, trying alternative method..."
+#         APP_VERSION=$(grep -E 'version:\s*"[0-9]+\.[0-9]+\.[0-9]+"' ../app.config.js | sed -E 's/.*version:\s*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/' | head -1)
+#         if [[ ! "$APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+#           echo "ERROR: Could not extract version. Using default 1.0.0"
+#           APP_VERSION="1.0.0"
+#         fi
+#       fi
+      
+#       echo "Using app version: $APP_VERSION for file naming"
+      
+#       # Verify APK was created
+#       if [ ! -f "app/build/outputs/apk/release/app-release.apk" ]; then
+#         echo "ERROR: APK file not found after build!"
+#         echo "APK directory contents not found"
+#         exit 1
+#       fi
+      
+#       # Verify AAB was created
+#       if [ ! -f "app/build/outputs/bundle/release/app-release.aab" ]; then
+#         echo "ERROR: AAB file not found after build!"
+#         echo "AAB directory contents not found"
+#         exit 1
+#       fi
+      
+#       # Verify APK/AAB are NOT signed with debug keys
+#       echo "=== Verifying signing (must NOT be debug signed) ==="
+      
+#       # Quick signing verification (minimal output)
+#       if command -v apksigner >/dev/null 2>&1; then
+#         apksigner verify app/build/outputs/apk/release/app-release.apk >/dev/null 2>&1 && echo "✓ APK signed" || echo "⚠ APK signing issue"
+#       fi
+      
+#       # Rename APK based on branch (including app version)
+#       if [ "$BRANCH_NAME" = "features" ]; then
+#         mv app/build/outputs/apk/release/app-release.apk \
+#            app/build/outputs/apk/release/app-release-test_v${APP_VERSION}_build${BUILD_NUM}.apk
+#         echo "Created: app-release-test_v${APP_VERSION}_build${BUILD_NUM}.apk"
+#       elif [ "$BRANCH_NAME" = "dev" ]; then
+#         mv app/build/outputs/apk/release/app-release.apk \
+#            app/build/outputs/apk/release/app-release-staging_v${APP_VERSION}_build${BUILD_NUM}.apk
+#         echo "Created: app-release-staging_v${APP_VERSION}_build${BUILD_NUM}.apk"
+#       elif [ "$BRANCH_NAME" = "main" ] || [ "$BRANCH_NAME" = "master" ]; then
+#         # For main/master, rename to include version
+#         mv app/build/outputs/apk/release/app-release.apk \
+#            app/build/outputs/apk/release/app-release-v${APP_VERSION}_build${BUILD_NUM}.apk
+#         echo "Created: app-release-v${APP_VERSION}_build${BUILD_NUM}.apk"
+#       else
+#         # Fallback for any other allowed branch
+#         mv app/build/outputs/apk/release/app-release.apk \
+#            app/build/outputs/apk/release/app-release-${BRANCH_NAME}_v${APP_VERSION}_build${BUILD_NUM}.apk
+#         echo "Created: app-release-${BRANCH_NAME}_v${APP_VERSION}_build${BUILD_NUM}.apk"
+#       fi
+      
+#       # Rename AAB based on branch (including app version)
+#       if [ "$BRANCH_NAME" = "features" ]; then
+#         mv app/build/outputs/bundle/release/app-release.aab \
+#            app/build/outputs/bundle/release/app-release-test_v${APP_VERSION}_build${BUILD_NUM}.aab
+#         echo "Created: app-release-test_v${APP_VERSION}_build${BUILD_NUM}.aab"
+#       elif [ "$BRANCH_NAME" = "dev" ]; then
+#         mv app/build/outputs/bundle/release/app-release.aab \
+#            app/build/outputs/bundle/release/app-release-staging_v${APP_VERSION}_build${BUILD_NUM}.aab
+#         echo "Created: app-release-staging_v${APP_VERSION}_build${BUILD_NUM}.aab"
+#       elif [ "$BRANCH_NAME" = "main" ] || [ "$BRANCH_NAME" = "master" ]; then
+#         # For main/master, rename to include version
+#         mv app/build/outputs/bundle/release/app-release.aab \
+#            app/build/outputs/bundle/release/app-release-v${APP_VERSION}_build${BUILD_NUM}.aab
+#         echo "Created: app-release-v${APP_VERSION}_build${BUILD_NUM}.aab"
+#       else
+#         # Fallback for any other allowed branch
+#         mv app/build/outputs/bundle/release/app-release.aab \
+#            app/build/outputs/bundle/release/app-release-${BRANCH_NAME}_v${APP_VERSION}_build${BUILD_NUM}.aab
+#         echo "Created: app-release-${BRANCH_NAME}_v${APP_VERSION}_build${BUILD_NUM}.aab"
+#       fi
+      
+#       # Display build info
+#       echo "Build completed successfully!"
+#       echo "APK files: $(ls app/build/outputs/apk/release/*.apk | wc -l) files created"
+#       echo "AAB files: $(ls app/build/outputs/bundle/release/*.aab | wc -l) files created"
+#     - |
+#       # Sync version back to repo (VERSION, app.config.js, package.json) so next build starts from correct baseline
+#       # Requires GIT_PUSH_TOKEN CI variable (Project Access Token or PAT with write_repository)
+#       # Add in GitLab: Settings > CI/CD > Variables > GIT_PUSH_TOKEN (masked, protected)
+#       cd "$CI_PROJECT_DIR"
+#       if [ -n "${GIT_PUSH_TOKEN:-}" ]; then
+#         echo "=== Syncing version files back to repo ==="
+#         git config user.email "ci@gitlab"
+#         git config user.name "GitLab CI"
+#         git remote set-url origin "https://oauth2:${GIT_PUSH_TOKEN}@${CI_SERVER_HOST#*://}/${CI_PROJECT_PATH}.git"
+#         git add VERSION app.config.js package.json
+#         if git diff --staged --quiet; then
+#           echo "No version changes to commit (already in sync)"
+#         else
+#           NEW_VER=$(cat VERSION)
+#           git commit -m "chore: bump version to ${NEW_VER} [skip ci]"
+#           git push origin "$CI_COMMIT_REF_NAME"
+#           echo "Pushed version ${NEW_VER} to ${CI_COMMIT_REF_NAME}"
+#         fi
+#       else
+#         echo "GIT_PUSH_TOKEN not set - skipping version sync (version files updated only in build workspace)"
+#       fi
+#   artifacts:
+#     paths:
+#       # Version tracking: easy to see what version was built
+#       - VERSION
+#       # AAB: used for Play Store deployment (deploy jobs use this)
+#       - android/app/build/outputs/bundle/release/app-release*.aab
+#       # APK: for direct install/testing (e.g. internal distribution)
+#       - android/app/build/outputs/apk/release/app-release*.apk
+#     expire_in: 7 days
+#     when: on_success
+
+# # Deployment to Google Play Store - Internal Testing (features branch)
+# deploy_internal:
+#   stage: deploy
+#   image: ruby:3.1
+#   tags:
+#     - customerapp
+#   only:
+#     - features
+#   dependencies:
+#     - build_customerapp
+#   before_script:
+#     - |
+#       # Check for Ruby in common locations (for shell executors)
+#       if ! command -v ruby &> /dev/null; then
+#         # Try common Ruby locations
+#         if [ -f /usr/bin/ruby ]; then
+#           export PATH="/usr/bin:$PATH"
+#         elif [ -f /usr/local/bin/ruby ]; then
+#           export PATH="/usr/local/bin:$PATH"
+#         elif [ -d "$HOME/.rbenv" ]; then
+#           export PATH="$HOME/.rbenv/bin:$PATH"
+#           eval "$(rbenv init -)"
+#         elif [ -d "$HOME/.rvm" ]; then
+#           source "$HOME/.rvm/scripts/rvm"
+#         else
+#           echo "=========================================="
+#           echo "ERROR: Ruby is not installed on this runner"
+#           echo "=========================================="
+#           echo ""
+#           echo "This runner is using a shell executor (not Docker), so Ruby must be installed on the runner machine."
+#           echo ""
+#           echo "Please ask your GitLab admin to install Ruby on the runner:"
+#           echo "  sudo apt-get update"
+#           echo "  sudo apt-get install -y ruby-full"
+#           echo ""
+#           echo "Or install Ruby using rbenv (no sudo needed):"
+#           echo "  git clone https://github.com/rbenv/rbenv.git ~/.rbenv"
+#           echo "  export PATH=\"\$HOME/.rbenv/bin:\$PATH\""
+#           echo "  eval \"\$(rbenv init -)\""
+#           echo "  git clone https://github.com/rbenv/ruby-build.git ~/.rbenv/plugins/ruby-build"
+#           echo "  rbenv install 3.1.0"
+#           echo "  rbenv global 3.1.0"
+#           echo ""
+#           exit 1
+#         fi
+#       fi
+      
+#       # Verify Ruby is available
+#       if ! command -v ruby &> /dev/null; then
+#         echo "ERROR: Ruby still not found after checking common locations"
+#         exit 1
+#       fi
+      
+#       # Verify gem is available
+#       if ! command -v gem &> /dev/null; then
+#         echo "ERROR: RubyGems (gem) is not installed"
+#         exit 1
+#       fi
+      
+#       # Check for build tools needed for native extensions
+#       if ! command -v make &> /dev/null; then
+#         echo "=========================================="
+#         echo "WARNING: Build tools (make) not found"
+#         echo "=========================================="
+#         echo ""
+#         echo "Fastlane requires build tools to compile native extensions."
+#         echo "Please ask your GitLab admin to install build tools on the runner:"
+#         echo "  sudo apt-get update"
+#         echo "  sudo apt-get install -y build-essential"
+#         echo ""
+#         echo "Attempting to continue anyway..."
+#       fi
+      
+#       # Install Fastlane to user directory (no sudo needed)
+#       if ! command -v fastlane &> /dev/null; then
+#         echo "Installing Fastlane to user directory..."
+        
+#         # Direct gem install (simpler, no bundler needed)
+#         gem install fastlane -NV --user-install || {
+#           echo ""
+#           echo "=========================================="
+#           echo "ERROR: Fastlane installation failed"
+#           echo "=========================================="
+#           echo ""
+#           echo "Common causes:"
+#           echo "1. Build tools missing (make, gcc)"
+#           echo "   Solution: sudo apt-get install -y build-essential"
+#           echo ""
+#           echo "2. Network issues or gem server problems"
+#           echo "   Solution: Check internet connectivity"
+#           echo ""
+#           echo "3. Disk space issues"
+#           echo "   Solution: Check available disk space"
+#           echo ""
+#           exit 1
+#         }
+        
+#         # Add user gem bin directory to PATH
+#         GEM_HOME=$(gem env user_gemhome 2>/dev/null || echo "$HOME/.local/share/gem/ruby/$(ruby -e 'puts RUBY_VERSION[/\d+\.\d+/]')")
+#         GEM_BIN="$GEM_HOME/bin"
+#         export PATH="$GEM_BIN:$PATH"
+        
+#         # Also try common gem paths
+#         if [ ! -d "$GEM_BIN" ] || [ ! -f "$GEM_BIN/fastlane" ]; then
+#           # Try alternative paths
+#           for RUBY_VERSION in $(ruby -e 'puts RUBY_VERSION[/\d+\.\d+/]') 3.2.0 3.1.0; do
+#             ALT_PATH="$HOME/.local/share/gem/ruby/$RUBY_VERSION/bin"
+#             if [ -f "$ALT_PATH/fastlane" ]; then
+#               export PATH="$ALT_PATH:$PATH"
+#               break
+#             fi
+#             ALT_PATH="$HOME/.gem/ruby/$RUBY_VERSION/bin"
+#             if [ -f "$ALT_PATH/fastlane" ]; then
+#               export PATH="$ALT_PATH:$PATH"
+#               break
+#             fi
+#           done
+#         fi
+        
+#         # Verify installation
+#         if ! command -v fastlane &> /dev/null; then
+#           echo ""
+#           echo "ERROR: Fastlane installed but not found in PATH"
+#           echo "GEM_HOME: $GEM_HOME"
+#           echo "GEM_BIN: $GEM_BIN"
+#           echo "PATH: $PATH"
+#           echo ""
+#           echo "Trying to find fastlane..."
+#           find ~/.local ~/.gem -name fastlane -type f 2>/dev/null | head -5
+#           echo ""
+#           echo "Please check the installation or add the gem bin directory to PATH"
+#           exit 1
+#         fi
+#       fi
+      
+#       echo "Ruby version: $(ruby --version)"
+#       echo "Fastlane version: $(fastlane --version)"
+#     - cd android
+#     # Write service account JSON to file for fastlane
+#     - |
+#       if [ -z "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" ]; then
+#         echo "ERROR: GOOGLE_PLAY_SERVICE_ACCOUNT_JSON environment variable is not set!"
+#         echo "Please set this variable in GitLab CI/CD settings → Variables"
+#         exit 1
+#       fi
+      
+#       # Write JSON to file (using printf to handle special characters)
+#       printf '%s\n' "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" > /tmp/google-play-key.json
+      
+#       # Validate JSON file
+#       if [ ! -s /tmp/google-play-key.json ]; then
+#         echo "ERROR: JSON file is empty!"
+#         exit 1
+#       fi
+      
+#       # Validate it's valid JSON (if python/jq available)
+#       if command -v python3 &> /dev/null; then
+#         python3 -m json.tool /tmp/google-play-key.json > /dev/null 2>&1 || {
+#           echo "ERROR: Invalid JSON format in GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"
+#           echo "First 100 characters: $(head -c 100 /tmp/google-play-key.json)"
+#           exit 1
+#         }
+#         echo "✓ JSON file is valid"
+#       fi
+      
+#       # Set environment variable for Fastlane
+#       export GOOGLE_APPLICATION_CREDENTIALS=/tmp/google-play-key.json
+#       echo "✓ Service account JSON file created at: $GOOGLE_APPLICATION_CREDENTIALS"
+#   script:
+#     - |
+#       # Find AAB file (we're already in android directory)
+#       AAB_PATH=$(find app/build/outputs/bundle/release -name "app-release-test_v*_build*.aab" | head -1)
+#       if [ -z "$AAB_PATH" ]; then
+#         echo "Error: AAB not found!"
+#         echo "AAB directory contents not found"
+#         exit 1
+#       fi
+#       # Convert to absolute path
+#       AAB_PATH=$(pwd)/$AAB_PATH
+#       echo "Deploying $AAB_PATH to Internal Testing track..."
+      
+#       # Deploy to internal testing track
+#       if ! fastlane deploy_internal aab_path:"$AAB_PATH"; then
+#         echo ""
+#         echo "❌ Deployment failed!"
+#         echo ""
+#         echo "If you see 'Only releases with status draft may be created on draft app':"
+#         echo "1. Your app is still in DRAFT status in Google Play Console"
+#         echo "2. You need to publish the app manually first through Google Play Console"
+#         echo "3. Complete store listing, content rating, and publish the first release"
+#         echo "4. After publishing, automated deployments will work"
+#         echo ""
+#         echo "For now, you can download the AAB artifact and upload it manually."
+#         exit 1
+#       fi
+#   when: manual
+#   allow_failure: false
+#   environment:
+#     name: internal
+#     url: https://play.google.com/apps/test/com.mybeeapp.customer
+
+# # Deployment to Google Play Store - Beta (dev branch)
+# deploy_beta:
+#   stage: deploy
+#   image: ruby:3.1
+#   tags:
+#     - customerapp
+#   only:
+#     - dev
+#   dependencies:
+#     - build_customerapp
+#   before_script:
+#     - |
+#       # Check for Ruby in common locations (for shell executors)
+#       if ! command -v ruby &> /dev/null; then
+#         # Try common Ruby locations
+#         if [ -f /usr/bin/ruby ]; then
+#           export PATH="/usr/bin:$PATH"
+#         elif [ -f /usr/local/bin/ruby ]; then
+#           export PATH="/usr/local/bin:$PATH"
+#         elif [ -d "$HOME/.rbenv" ]; then
+#           export PATH="$HOME/.rbenv/bin:$PATH"
+#           eval "$(rbenv init -)"
+#         elif [ -d "$HOME/.rvm" ]; then
+#           source "$HOME/.rvm/scripts/rvm"
+#         else
+#           echo "=========================================="
+#           echo "ERROR: Ruby is not installed on this runner"
+#           echo "=========================================="
+#           echo ""
+#           echo "This runner is using a shell executor (not Docker), so Ruby must be installed on the runner machine."
+#           echo ""
+#           echo "Please ask your GitLab admin to install Ruby on the runner:"
+#           echo "  sudo apt-get update"
+#           echo "  sudo apt-get install -y ruby-full"
+#           echo ""
+#           echo "Or install Ruby using rbenv (no sudo needed):"
+#           echo "  git clone https://github.com/rbenv/rbenv.git ~/.rbenv"
+#           echo "  export PATH=\"\$HOME/.rbenv/bin:\$PATH\""
+#           echo "  eval \"\$(rbenv init -)\""
+#           echo "  git clone https://github.com/rbenv/ruby-build.git ~/.rbenv/plugins/ruby-build"
+#           echo "  rbenv install 3.1.0"
+#           echo "  rbenv global 3.1.0"
+#           echo ""
+#           exit 1
+#         fi
+#       fi
+      
+#       # Verify Ruby is available
+#       if ! command -v ruby &> /dev/null; then
+#         echo "ERROR: Ruby still not found after checking common locations"
+#         exit 1
+#       fi
+      
+#       # Verify gem is available
+#       if ! command -v gem &> /dev/null; then
+#         echo "ERROR: RubyGems (gem) is not installed"
+#         exit 1
+#       fi
+      
+#       # Check for build tools needed for native extensions
+#       if ! command -v make &> /dev/null; then
+#         echo "=========================================="
+#         echo "WARNING: Build tools (make) not found"
+#         echo "=========================================="
+#         echo ""
+#         echo "Fastlane requires build tools to compile native extensions."
+#         echo "Please ask your GitLab admin to install build tools on the runner:"
+#         echo "  sudo apt-get update"
+#         echo "  sudo apt-get install -y build-essential"
+#         echo ""
+#         echo "Attempting to continue anyway..."
+#       fi
+      
+#       # Install Fastlane to user directory (no sudo needed)
+#       if ! command -v fastlane &> /dev/null; then
+#         echo "Installing Fastlane to user directory..."
+        
+#         # Direct gem install (simpler, no bundler needed)
+#         gem install fastlane -NV --user-install || {
+#           echo ""
+#           echo "=========================================="
+#           echo "ERROR: Fastlane installation failed"
+#           echo "=========================================="
+#           echo ""
+#           echo "Common causes:"
+#           echo "1. Build tools missing (make, gcc)"
+#           echo "   Solution: sudo apt-get install -y build-essential"
+#           echo ""
+#           echo "2. Network issues or gem server problems"
+#           echo "   Solution: Check internet connectivity"
+#           echo ""
+#           echo "3. Disk space issues"
+#           echo "   Solution: Check available disk space"
+#           echo ""
+#           exit 1
+#         }
+        
+#         # Add user gem bin directory to PATH
+#         GEM_HOME=$(gem env user_gemhome 2>/dev/null || echo "$HOME/.local/share/gem/ruby/$(ruby -e 'puts RUBY_VERSION[/\d+\.\d+/]')")
+#         GEM_BIN="$GEM_HOME/bin"
+#         export PATH="$GEM_BIN:$PATH"
+        
+#         # Also try common gem paths
+#         if [ ! -d "$GEM_BIN" ] || [ ! -f "$GEM_BIN/fastlane" ]; then
+#           # Try alternative paths
+#           for RUBY_VERSION in $(ruby -e 'puts RUBY_VERSION[/\d+\.\d+/]') 3.2.0 3.1.0; do
+#             ALT_PATH="$HOME/.local/share/gem/ruby/$RUBY_VERSION/bin"
+#             if [ -f "$ALT_PATH/fastlane" ]; then
+#               export PATH="$ALT_PATH:$PATH"
+#               break
+#             fi
+#             ALT_PATH="$HOME/.gem/ruby/$RUBY_VERSION/bin"
+#             if [ -f "$ALT_PATH/fastlane" ]; then
+#               export PATH="$ALT_PATH:$PATH"
+#               break
+#             fi
+#           done
+#         fi
+        
+#         # Verify installation
+#         if ! command -v fastlane &> /dev/null; then
+#           echo ""
+#           echo "ERROR: Fastlane installed but not found in PATH"
+#           echo "GEM_HOME: $GEM_HOME"
+#           echo "GEM_BIN: $GEM_BIN"
+#           echo "PATH: $PATH"
+#           echo ""
+#           echo "Trying to find fastlane..."
+#           find ~/.local ~/.gem -name fastlane -type f 2>/dev/null | head -5
+#           echo ""
+#           echo "Please check the installation or add the gem bin directory to PATH"
+#           exit 1
+#         fi
+#       fi
+      
+#       echo "Ruby version: $(ruby --version)"
+#       echo "Fastlane version: $(fastlane --version)"
+#     - cd android
+#     # Write service account JSON to file for fastlane
+#     - |
+#       if [ -z "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" ]; then
+#         echo "ERROR: GOOGLE_PLAY_SERVICE_ACCOUNT_JSON environment variable is not set!"
+#         echo "Please set this variable in GitLab CI/CD settings → Variables"
+#         exit 1
+#       fi
+      
+#       # Write JSON to file (using printf to handle special characters)
+#       printf '%s\n' "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" > /tmp/google-play-key.json
+      
+#       # Validate JSON file
+#       if [ ! -s /tmp/google-play-key.json ]; then
+#         echo "ERROR: JSON file is empty!"
+#         exit 1
+#       fi
+      
+#       # Validate it's valid JSON (if python/jq available)
+#       if command -v python3 &> /dev/null; then
+#         python3 -m json.tool /tmp/google-play-key.json > /dev/null 2>&1 || {
+#           echo "ERROR: Invalid JSON format in GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"
+#           echo "First 100 characters: $(head -c 100 /tmp/google-play-key.json)"
+#           exit 1
+#         }
+#         echo "✓ JSON file is valid"
+#       fi
+      
+#       # Set environment variable for Fastlane
+#       export GOOGLE_APPLICATION_CREDENTIALS=/tmp/google-play-key.json
+#       echo "✓ Service account JSON file created at: $GOOGLE_APPLICATION_CREDENTIALS"
+#   script:
+#     - |
+#       # Find AAB file (we're already in android directory)
+#       AAB_PATH=$(find app/build/outputs/bundle/release -name "app-release-staging_v*_build*.aab" | head -1)
+#       if [ -z "$AAB_PATH" ]; then
+#         echo "Error: AAB not found!"
+#         echo "AAB directory contents not found"
+#         exit 1
+#       fi
+#       # Convert to absolute path
+#       AAB_PATH=$(pwd)/$AAB_PATH
+#       echo "Deploying $AAB_PATH to Beta track..."
+      
+#       # Deploy with error handling for draft apps
+#       if ! fastlane deploy_beta aab_path:"$AAB_PATH"; then
+#         echo ""
+#         echo "❌ Deployment failed!"
+#         echo ""
+#         echo "If you see 'Only releases with status draft may be created on draft app':"
+#         echo "1. Your app is still in DRAFT status in Google Play Console"
+#         echo "2. You need to publish the app manually first through Google Play Console"
+#         echo "3. Complete store listing, content rating, and publish the first release"
+#         echo "4. After publishing, automated deployments will work"
+#         echo ""
+#         echo "For now, you can download the AAB artifact and upload it manually."
+#         exit 1
+#       fi
+#   when: manual
+#   allow_failure: false
+#   environment:
+#     name: beta
+#     url: https://play.google.com/apps/test/com.mybeeapp.customer
+
+
+# # Deployment to Google Play Store - Production (main/master branches)
+# deploy_production:
+#   stage: deploy
+#   image: ruby:3.1
+#   tags:
+#     - customerapp
+#   only:
+#     - main
+#     - master
+#   dependencies:
+#     - build_customerapp
+#   before_script:
+#     - |
+#       # Check for Ruby in common locations (for shell executors)
+#       if ! command -v ruby &> /dev/null; then
+#         # Try common Ruby locations
+#         if [ -f /usr/bin/ruby ]; then
+#           export PATH="/usr/bin:$PATH"
+#         elif [ -f /usr/local/bin/ruby ]; then
+#           export PATH="/usr/local/bin:$PATH"
+#         elif [ -d "$HOME/.rbenv" ]; then
+#           export PATH="$HOME/.rbenv/bin:$PATH"
+#           eval "$(rbenv init -)"
+#         elif [ -d "$HOME/.rvm" ]; then
+#           source "$HOME/.rvm/scripts/rvm"
+#         else
+#           echo "=========================================="
+#           echo "ERROR: Ruby is not installed on this runner"
+#           echo "=========================================="
+#           echo ""
+#           echo "This runner is using a shell executor (not Docker), so Ruby must be installed on the runner machine."
+#           echo ""
+#           echo "Please ask your GitLab admin to install Ruby on the runner:"
+#           echo "  sudo apt-get update"
+#           echo "  sudo apt-get install -y ruby-full"
+#           echo ""
+#           echo "Or install Ruby using rbenv (no sudo needed):"
+#           echo "  git clone https://github.com/rbenv/rbenv.git ~/.rbenv"
+#           echo "  export PATH=\"\$HOME/.rbenv/bin:\$PATH\""
+#           echo "  eval \"\$(rbenv init -)\""
+#           echo "  git clone https://github.com/rbenv/ruby-build.git ~/.rbenv/plugins/ruby-build"
+#           echo "  rbenv install 3.1.0"
+#           echo "  rbenv global 3.1.0"
+#           echo ""
+#           exit 1
+#         fi
+#       fi
+      
+#       # Verify Ruby is available
+#       if ! command -v ruby &> /dev/null; then
+#         echo "ERROR: Ruby still not found after checking common locations"
+#         exit 1
+#       fi
+      
+#       # Verify gem is available
+#       if ! command -v gem &> /dev/null; then
+#         echo "ERROR: RubyGems (gem) is not installed"
+#         exit 1
+#       fi
+      
+#       # Check for build tools needed for native extensions
+#       if ! command -v make &> /dev/null; then
+#         echo "=========================================="
+#         echo "WARNING: Build tools (make) not found"
+#         echo "=========================================="
+#         echo ""
+#         echo "Fastlane requires build tools to compile native extensions."
+#         echo "Please ask your GitLab admin to install build tools on the runner:"
+#         echo "  sudo apt-get update"
+#         echo "  sudo apt-get install -y build-essential"
+#         echo ""
+#         echo "Attempting to continue anyway..."
+#       fi
+      
+#       # Install Fastlane to user directory (no sudo needed)
+#       if ! command -v fastlane &> /dev/null; then
+#         echo "Installing Fastlane to user directory..."
+        
+#         # Direct gem install (simpler, no bundler needed)
+#         gem install fastlane -NV --user-install || {
+#           echo ""
+#           echo "=========================================="
+#           echo "ERROR: Fastlane installation failed"
+#           echo "=========================================="
+#           echo ""
+#           echo "Common causes:"
+#           echo "1. Build tools missing (make, gcc)"
+#           echo "   Solution: sudo apt-get install -y build-essential"
+#           echo ""
+#           echo "2. Network issues or gem server problems"
+#           echo "   Solution: Check internet connectivity"
+#           echo ""
+#           echo "3. Disk space issues"
+#           echo "   Solution: Check available disk space"
+#           echo ""
+#           exit 1
+#         }
+        
+#         # Add user gem bin directory to PATH
+#         GEM_HOME=$(gem env user_gemhome 2>/dev/null || echo "$HOME/.local/share/gem/ruby/$(ruby -e 'puts RUBY_VERSION[/\d+\.\d+/]')")
+#         GEM_BIN="$GEM_HOME/bin"
+#         export PATH="$GEM_BIN:$PATH"
+        
+#         # Also try common gem paths
+#         if [ ! -d "$GEM_BIN" ] || [ ! -f "$GEM_BIN/fastlane" ]; then
+#           # Try alternative paths
+#           for RUBY_VERSION in $(ruby -e 'puts RUBY_VERSION[/\d+\.\d+/]') 3.2.0 3.1.0; do
+#             ALT_PATH="$HOME/.local/share/gem/ruby/$RUBY_VERSION/bin"
+#             if [ -f "$ALT_PATH/fastlane" ]; then
+#               export PATH="$ALT_PATH:$PATH"
+#               break
+#             fi
+#             ALT_PATH="$HOME/.gem/ruby/$RUBY_VERSION/bin"
+#             if [ -f "$ALT_PATH/fastlane" ]; then
+#               export PATH="$ALT_PATH:$PATH"
+#               break
+#             fi
+#           done
+#         fi
+        
+#         # Verify installation
+#         if ! command -v fastlane &> /dev/null; then
+#           echo ""
+#           echo "ERROR: Fastlane installed but not found in PATH"
+#           echo "GEM_HOME: $GEM_HOME"
+#           echo "GEM_BIN: $GEM_BIN"
+#           echo "PATH: $PATH"
+#           echo ""
+#           echo "Trying to find fastlane..."
+#           find ~/.local ~/.gem -name fastlane -type f 2>/dev/null | head -5
+#           echo ""
+#           echo "Please check the installation or add the gem bin directory to PATH"
+#           exit 1
+#         fi
+#       fi
+      
+#       echo "Ruby version: $(ruby --version)"
+#       echo "Fastlane version: $(fastlane --version)"
+#     - cd android
+#     # Write service account JSON to file for fastlane
+#     - |
+#       if [ -z "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" ]; then
+#         echo "ERROR: GOOGLE_PLAY_SERVICE_ACCOUNT_JSON environment variable is not set!"
+#         echo "Please set this variable in GitLab CI/CD settings → Variables"
+#         exit 1
+#       fi
+      
+#       # Write JSON to file (using printf to handle special characters)
+#       printf '%s\n' "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" > /tmp/google-play-key.json
+      
+#       # Validate JSON file
+#       if [ ! -s /tmp/google-play-key.json ]; then
+#         echo "ERROR: JSON file is empty!"
+#         exit 1
+#       fi
+      
+#       # Validate it's valid JSON (if python/jq available)
+#       if command -v python3 &> /dev/null; then
+#         python3 -m json.tool /tmp/google-play-key.json > /dev/null 2>&1 || {
+#           echo "ERROR: Invalid JSON format in GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"
+#           echo "First 100 characters: $(head -c 100 /tmp/google-play-key.json)"
+#           exit 1
+#         }
+#         echo "✓ JSON file is valid"
+#       fi
+      
+#       # Set environment variable for Fastlane
+#       export GOOGLE_APPLICATION_CREDENTIALS=/tmp/google-play-key.json
+#       echo "✓ Service account JSON file created at: $GOOGLE_APPLICATION_CREDENTIALS"
+#   script:
+#     - |
+#       # Find AAB file (we're already in android directory)
+#       AAB_PATH=$(find app/build/outputs/bundle/release -name "app-release-v*_build*.aab" | head -1)
+#       if [ -z "$AAB_PATH" ]; then
+#         echo "Error: AAB not found!"
+#         echo "AAB directory contents not found"
+#         exit 1
+#       fi
+#       # Convert to absolute path
+#       AAB_PATH=$(pwd)/$AAB_PATH
+#       echo "Deploying $AAB_PATH to Production track..."
+      
+#       # Deploy with error handling for draft apps
+#       if ! fastlane deploy_production aab_path:"$AAB_PATH"; then
+#         echo ""
+#         echo "❌ Deployment failed!"
+#         echo ""
+#         echo "If you see 'Only releases with status draft may be created on draft app':"
+#         echo "1. Your app is still in DRAFT status in Google Play Console"
+#         echo "2. You need to publish the app manually first through Google Play Console"
+#         echo "3. Complete store listing, content rating, and publish the first release"
+#         echo "4. After publishing, automated deployments will work"
+#         echo ""
+#         echo "For now, you can download the AAB artifact and upload it manually."
+#         exit 1
+#       fi
+#   when: manual
+#   allow_failure: false
+#   environment:
+#     name: production
+#     url: https://play.google.com/store/apps/details?id=com.mybeeapp.customer
